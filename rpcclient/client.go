@@ -36,11 +36,17 @@ func (wac *WalletChainAccountClient) ExportAddressByPubKey(method, publicKey str
 	return address.Address
 }
 
-func (wac *WalletChainAccountClient) GetLatestBlock() (*BlockHeader, error) {
+func (wac *WalletChainAccountClient) GetBlockHeader(number *big.Int) (*BlockHeader, error) {
+	var height int64
+	if number != nil {
+		height = 0
+	} else {
+		height = number.Int64()
+	}
 	req := &account.BlockHeaderNumberRequest{
 		Chain:   wac.ChainName,
 		Network: "mainnet",
-		Height:  0,
+		Height:  height,
 	}
 	blockHeader, err := wac.AccountRpClient.GetBlockHeaderByNumber(wac.Ctx, req)
 	if blockHeader.Code == common.ReturnCode_ERROR {
@@ -57,10 +63,10 @@ func (wac *WalletChainAccountClient) GetLatestBlock() (*BlockHeader, error) {
 	return header, nil
 }
 
-func (wac *WalletChainAccountClient) GetBlockInfo(blockNumber int64) ([]*account.BlockInfoTransactionList, error) {
+func (wac *WalletChainAccountClient) GetBlockInfo(blockNumber *big.Int) ([]*account.BlockInfoTransactionList, error) {
 	req := &account.BlockNumberRequest{
 		Chain:  wac.ChainName,
-		Height: blockNumber,
+		Height: blockNumber.Int64(),
 		ViewTx: true,
 	}
 	blockInfo, err := wac.AccountRpClient.GetBlockByNumber(wac.Ctx, req)

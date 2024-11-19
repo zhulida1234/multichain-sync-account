@@ -19,6 +19,7 @@ type Addresses struct {
 }
 
 type AddressesView interface {
+	AddressExist(requestId string, address *common.Address) (bool, uint8)
 	QueryAddressesByToAddress(string, *common.Address) (*Addresses, error)
 	QueryHotWalletInfo(string) (*Addresses, error)
 	QueryColdWalletInfo(string) (*Addresses, error)
@@ -35,12 +36,24 @@ type addressesDB struct {
 	gorm *gorm.DB
 }
 
+func (db *addressesDB) AddressExist(requestId string, address *common.Address) (bool, uint8) {
+	var addressEntry Addresses
+	err := db.gorm.Table("addresses_"+requestId).Where("address", strings.ToLower(address.String())).First(&addressEntry).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, 0
+		}
+		return false, 0
+	}
+	return true, addressEntry.AddressType
+}
+
 func (db *addressesDB) QueryAddressesByToAddress(requestId string, address *common.Address) (*Addresses, error) {
 	var addressEntry Addresses
 	err := db.gorm.Table("addresses_"+requestId).Where("address", strings.ToLower(address.String())).Take(&addressEntry).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, gorm.ErrRecordNotFound
 		}
 		return nil, err
 	}

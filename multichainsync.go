@@ -8,12 +8,11 @@ import (
 
 	"github.com/dapplink-labs/multichain-sync-account/config"
 	"github.com/dapplink-labs/multichain-sync-account/database"
-	"github.com/dapplink-labs/multichain-sync-account/synchronizer"
 	"github.com/dapplink-labs/multichain-sync-account/worker"
 )
 
 type MultiChainSync struct {
-	Synchronizer *synchronizer.Synchronizer
+	Synchronizer *worker.BaseSynchronizer
 	Deposit      *worker.Deposit
 	Withdraw     *worker.Withdraw
 	Collection   *worker.Collection
@@ -29,7 +28,6 @@ func NewMultiChainSync(ctx context.Context, cfg *config.Config, shutdown context
 		log.Error("init database fail", err)
 		return nil, err
 	}
-	syncer, _ := synchronizer.NewSynchronizer(cfg, db, shutdown)
 
 	deposit, _ := worker.NewDeposit(cfg, db, shutdown)
 	withdraw, _ := worker.NewWithdraw(cfg, db, shutdown)
@@ -37,22 +35,17 @@ func NewMultiChainSync(ctx context.Context, cfg *config.Config, shutdown context
 	toCold, _ := worker.NewToCold(cfg, db, shutdown)
 
 	out := &MultiChainSync{
-		Synchronizer: syncer,
-		Deposit:      deposit,
-		Withdraw:     withdraw,
-		Collection:   collection,
-		ToCold:       toCold,
-		shutdown:     shutdown,
+		Deposit:    deposit,
+		Withdraw:   withdraw,
+		Collection: collection,
+		ToCold:     toCold,
+		shutdown:   shutdown,
 	}
 	return out, nil
 }
 
 func (mcs *MultiChainSync) Start(ctx context.Context) error {
-	err := mcs.Synchronizer.Start()
-	if err != nil {
-		return err
-	}
-	err = mcs.Deposit.Start()
+	err := mcs.Deposit.Start()
 	if err != nil {
 		return err
 	}
@@ -72,11 +65,7 @@ func (mcs *MultiChainSync) Start(ctx context.Context) error {
 }
 
 func (mcs *MultiChainSync) Stop(ctx context.Context) error {
-	err := mcs.Synchronizer.Close()
-	if err != nil {
-		return err
-	}
-	err = mcs.Deposit.Close()
+	err := mcs.Deposit.Close()
 	if err != nil {
 		return err
 	}

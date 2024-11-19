@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"gorm.io/gorm"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ type Business struct {
 }
 
 type BusinessView interface {
+	QueryBusinessList() ([]Business, error)
 	QueryBusinessByUuid(string) (*Business, error)
 }
 
@@ -38,6 +40,18 @@ func NewBusinessDB(db *gorm.DB) BusinessDB {
 func (db *businessDB) StoreBusiness(business *Business) error {
 	result := db.gorm.Table("business").Create(business)
 	return result.Error
+}
+
+func (db *businessDB) QueryBusinessList() ([]Business, error) {
+	var business []Business
+	err := db.gorm.Table("business").Find(&business).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, gorm.ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return business, err
 }
 
 func (db *businessDB) QueryBusinessByUuid(businessUid string) (*Business, error) {

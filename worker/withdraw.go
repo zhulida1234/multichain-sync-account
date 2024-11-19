@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/dapplink-labs/multichain-sync-account/common/tasks"
 	"github.com/dapplink-labs/multichain-sync-account/config"
 	"github.com/dapplink-labs/multichain-sync-account/database"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Withdraw struct {
