@@ -10,12 +10,10 @@ import (
 )
 
 type Business struct {
-	GUID           uuid.UUID `gorm:"primaryKey" json:"guid"`
-	BusinessUid    string    `json:"business_uid"`
-	DepositNotify  string    `json:"deposit_notify"`
-	WithdrawNotify string    `json:"withdraw_notify"`
-	TxFlowNotify   string    `json:"tx_flow_notify"`
-	Timestamp      uint64
+	GUID        uuid.UUID `gorm:"primaryKey" json:"guid"`
+	BusinessUid string    `json:"business_uid"`
+	NotifyUrl   string    `json:"notify_url"`
+	Timestamp   uint64
 }
 
 type BusinessView interface {

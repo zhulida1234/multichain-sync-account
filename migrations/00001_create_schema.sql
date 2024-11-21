@@ -13,9 +13,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS business(
     guid           VARCHAR PRIMARY KEY,
     business_uid   VARCHAR NOT NULL,
-    deposit_notify  VARCHAR NOT NULL,
-    withdraw_notify VARCHAR NOT NULL,
-    tx_flow_notify  VARCHAR NOT NULL,
+    notify_url  VARCHAR NOT NULL,
     timestamp      INTEGER  NOT NULL CHECK (timestamp > 0)
 );
 CREATE INDEX IF NOT EXISTS tokens_timestamp ON business (timestamp);
@@ -75,6 +73,7 @@ CREATE TABLE IF NOT EXISTS deposits (
     token_meta VARCHAR NOT NULL,
     fee UINT256 NOT NULL,
     amount UINT256 NOT NULL,
+    confirms SMALLINT NOT NULL DEFAULT 0,
     status SMALLINT NOT NULL DEFAULT 0,
     timestamp INTEGER NOT NULL CHECK(timestamp>0)
 );
@@ -97,6 +96,26 @@ CREATE TABLE IF NOT EXISTS withdraws (
 );
 CREATE INDEX IF NOT EXISTS withdraws_hash ON withdraws(hash);
 CREATE INDEX IF NOT EXISTS withdraws_timestamp ON withdraws(timestamp);
+
+
+CREATE TABLE IF NOT EXISTS internals (
+     guid  VARCHAR PRIMARY KEY,
+     block_hash VARCHAR NOT NULL,
+     block_number UINT256 NOT NULL CHECK(block_number>0),
+     hash VARCHAR NOT NULL,
+     from_address VARCHAR NOT NULL,
+     to_address VARCHAR NOT NULL,
+     token_address VARCHAR NOT NULL,
+     fee UINT256 NOT NULL,
+     amount UINT256 NOT NULL,
+     status SMALLINT NOT NULL DEFAULT 0,
+     tx_type SMALLINT NOT NULL DEFAULT 0,
+     timestamp INTEGER NOT NULL CHECK(timestamp>0),
+     tx_sign_hex VARCHAR NOT NULL
+);
+CREATE INDEX IF NOT EXISTS internals_hash ON internals(hash);
+CREATE INDEX IF NOT EXISTS internals_timestamp ON internals(timestamp);
+
 
 CREATE TABLE IF NOT EXISTS transactions (
     guid VARCHAR PRIMARY KEY,

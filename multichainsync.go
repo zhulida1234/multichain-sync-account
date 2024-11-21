@@ -15,8 +15,7 @@ type MultiChainSync struct {
 	Synchronizer *worker.BaseSynchronizer
 	Deposit      *worker.Deposit
 	Withdraw     *worker.Withdraw
-	Collection   *worker.Collection
-	ToCold       *worker.ToCold
+	Internal     *worker.Internal
 
 	shutdown context.CancelCauseFunc
 	stopped  atomic.Bool
@@ -31,15 +30,13 @@ func NewMultiChainSync(ctx context.Context, cfg *config.Config, shutdown context
 
 	deposit, _ := worker.NewDeposit(cfg, db, shutdown)
 	withdraw, _ := worker.NewWithdraw(cfg, db, shutdown)
-	collection, _ := worker.NewCollection(cfg, db, shutdown)
-	toCold, _ := worker.NewToCold(cfg, db, shutdown)
+	internal, _ := worker.NewInternal(cfg, db, shutdown)
 
 	out := &MultiChainSync{
-		Deposit:    deposit,
-		Withdraw:   withdraw,
-		Collection: collection,
-		ToCold:     toCold,
-		shutdown:   shutdown,
+		Deposit:  deposit,
+		Withdraw: withdraw,
+		Internal: internal,
+		shutdown: shutdown,
 	}
 	return out, nil
 }
@@ -53,11 +50,7 @@ func (mcs *MultiChainSync) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = mcs.Collection.Start()
-	if err != nil {
-		return err
-	}
-	err = mcs.ToCold.Start()
+	err = mcs.Internal.Start()
 	if err != nil {
 		return err
 	}
@@ -73,11 +66,7 @@ func (mcs *MultiChainSync) Stop(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = mcs.Collection.Close()
-	if err != nil {
-		return err
-	}
-	err = mcs.ToCold.Close()
+	err = mcs.Internal.Close()
 	if err != nil {
 		return err
 	}

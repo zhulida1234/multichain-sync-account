@@ -5,6 +5,7 @@ go 1.22.0
 require (
 	github.com/dgraph-io/ristretto v1.0.0
 	github.com/ethereum/go-ethereum v1.14.11
+	github.com/go-resty/resty/v2 v2.16.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgtype v1.14.3
 	github.com/pkg/errors v0.9.1

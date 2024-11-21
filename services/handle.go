@@ -32,19 +32,17 @@ var (
 )
 
 func (bws *BusinessMiddleWireServices) BusinessRegister(ctx context.Context, request *dal_wallet_go.BusinessRegisterRequest) (*dal_wallet_go.BusinessRegisterResponse, error) {
-	if request.RequestId == "" || request.DepositNotify == "" || request.WithdrawNotify == "" {
+	if request.RequestId == "" || request.NotifyUrl == "" {
 		return &dal_wallet_go.BusinessRegisterResponse{
 			Code: dal_wallet_go.ReturnCode_ERROR,
 			Msg:  "invalid params",
 		}, nil
 	}
 	business := &database.Business{
-		GUID:           uuid.New(),
-		BusinessUid:    request.RequestId,
-		DepositNotify:  request.DepositNotify,
-		WithdrawNotify: request.WithdrawNotify,
-		TxFlowNotify:   request.TxFlowNotify,
-		Timestamp:      uint64(time.Now().Unix()),
+		GUID:        uuid.New(),
+		BusinessUid: request.RequestId,
+		NotifyUrl:   request.NotifyUrl,
+		Timestamp:   uint64(time.Now().Unix()),
 	}
 	err := bws.db.Business.StoreBusiness(business)
 	if err != nil {
@@ -98,27 +96,60 @@ func (bws *BusinessMiddleWireServices) ExportAddressesByPublicKeys(ctx context.C
 func (bws *BusinessMiddleWireServices) CreateUnSignTransaction(ctx context.Context, request *dal_wallet_go.UnSignWithdrawTransactionRequest) (*dal_wallet_go.UnSignWithdrawTransactionResponse, error) {
 	amountBig, _ := new(big.Int).SetString(request.Value, 10)
 	transactionId := uuid.New()
-	withdraw := &database.Withdraws{
-		GUID:         transactionId,
-		BlockHash:    common.Hash{},
-		BlockNumber:  big.NewInt(0),
-		Hash:         common.Hash{},
-		FromAddress:  common.HexToAddress(request.From),
-		ToAddress:    common.HexToAddress(request.To),
-		TokenAddress: common.HexToAddress(request.ContractAddress),
-		TokenId:      request.TokenId,
-		TokenMeta:    request.TokenMeta,
-		Fee:          big.NewInt(0),
-		Amount:       amountBig,
-		Status:       0,
-		TxSignHex:    "",
-		Timestamp:    uint64(time.Now().Unix()),
+	if request.TxType == "withdraw" {
+		withdraw := &database.Withdraws{
+			GUID:         transactionId,
+			BlockHash:    common.Hash{},
+			BlockNumber:  big.NewInt(0),
+			Hash:         common.Hash{},
+			FromAddress:  common.HexToAddress(request.From),
+			ToAddress:    common.HexToAddress(request.To),
+			TokenAddress: common.HexToAddress(request.ContractAddress),
+			TokenId:      request.TokenId,
+			TokenMeta:    request.TokenMeta,
+			Fee:          big.NewInt(0),
+			Amount:       amountBig,
+			Status:       0,
+			TxSignHex:    "",
+			Timestamp:    uint64(time.Now().Unix()),
+		}
+		err := bws.db.Withdraws.StoreWithdraw(request.RequestId, withdraw)
+		if err != nil {
+			log.Error("store withdraw fail", "err", err)
+			return nil, err
+		}
+	} else if request.TxType == "collection" || request.TxType == "hot2cold" {
+		internal := &database.Internals{
+			GUID:         transactionId,
+			BlockHash:    common.Hash{},
+			BlockNumber:  big.NewInt(0),
+			Hash:         common.Hash{},
+			FromAddress:  common.HexToAddress(request.From),
+			ToAddress:    common.HexToAddress(request.To),
+			TokenAddress: common.HexToAddress(request.ContractAddress),
+			TokenId:      request.TokenId,
+			TokenMeta:    request.TokenMeta,
+			Fee:          big.NewInt(0),
+			Amount:       amountBig,
+			Status:       0,
+			TxType:       request.TxType,
+			TxSignHex:    "",
+			Timestamp:    uint64(time.Now().Unix()),
+		}
+		err := bws.db.Internals.StoreInternal(request.RequestId, internal)
+		if err != nil {
+			log.Error("store internal business transaction fail", "err", err)
+			return nil, err
+		}
+	} else {
+		return &dal_wallet_go.UnSignWithdrawTransactionResponse{
+			Code:          dal_wallet_go.ReturnCode_ERROR,
+			Msg:           "Un support transaction type",
+			TransactionId: transactionId.String(),
+			UnSignTx:      "0x00",
+		}, nil
 	}
-	err := bws.db.Withdraws.StoreWithdraw(request.RequestId, withdraw)
-	if err != nil {
-		log.Error("store withdraw fail", "err", err)
-		return nil, err
-	}
+
 	accountReq := &account.AccountRequest{
 		Chain:   ChainName,
 		Network: Network,
@@ -166,46 +197,89 @@ func (bws *BusinessMiddleWireServices) CreateUnSignTransaction(ctx context.Conte
 		return nil, err
 	}
 	return &dal_wallet_go.UnSignWithdrawTransactionResponse{
-		Code:          1,
-		Msg:           "submit withdraw and build unsign tranaction success",
+		Code:          dal_wallet_go.ReturnCode_SUCCESS,
+		Msg:           "submit withdraw and build un sign tranaction success",
 		TransactionId: transactionId.String(),
 		UnSignTx:      returnTx.UnSignTx,
 	}, nil
 }
 
 func (bws *BusinessMiddleWireServices) BuildSignedTransaction(ctx context.Context, request *dal_wallet_go.SignedWithdrawTransactionRequest) (*dal_wallet_go.SignedWithdrawTransactionResponse, error) {
-	tx, err := bws.db.Withdraws.UnSendWithdrawsList(request.RequestId, request.TransactionId)
-	if err != nil {
-		return nil, err
-	}
-	accountReq := &account.AccountRequest{
-		Chain:   ChainName,
-		Network: Network,
-		Address: tx.FromAddress.String(),
-	}
-	accountInfo, err := bws.accountClient.AccountRpClient.GetAccount(context.Background(), accountReq)
-	if err != nil {
-		return nil, err
-	}
-	nonce, _ := strconv.Atoi(accountInfo.Sequence)
-	var gasLimit uint64
-	if tx.TokenAddress.String() == "0x00" {
-		gasLimit = EthGasLimit
+	var txStructure TxStructure
+	if request.TxType == "withdraw" {
+		tx, err := bws.db.Withdraws.QueryWithdrawsByHash(request.RequestId, request.TransactionId)
+		if err != nil {
+			return nil, err
+		}
+		accountReq := &account.AccountRequest{
+			Chain:   ChainName,
+			Network: Network,
+			Address: tx.FromAddress.String(),
+		}
+		accountInfo, err := bws.accountClient.AccountRpClient.GetAccount(context.Background(), accountReq)
+		if err != nil {
+			return nil, err
+		}
+		nonce, _ := strconv.Atoi(accountInfo.Sequence)
+		var gasLimit uint64
+		if tx.TokenAddress.String() == "0x00" {
+			gasLimit = EthGasLimit
+		} else {
+			gasLimit = TokenGasLimit
+		}
+		txStructure = TxStructure{
+			ChainId:         request.ChainId,
+			Nonce:           uint64(nonce),
+			GasPrice:        maxFeePerGas,
+			GasTipCap:       maxFeePerGas,
+			GasFeeCap:       maxPriorityFeePerGas,
+			Gas:             gasLimit,
+			ContractAddress: tx.TokenAddress.String(),
+			FromAddress:     tx.FromAddress.String(),
+			ToAddress:       tx.ToAddress.String(),
+			TokenId:         tx.TokenId,
+			Value:           tx.Amount.String(),
+		}
+	} else if request.TxType == "collection" || request.TxType == "hot2cold" {
+		tx, err := bws.db.Internals.QueryInternalsByHash(request.RequestId, request.TransactionId)
+		if err != nil {
+			return nil, err
+		}
+		accountReq := &account.AccountRequest{
+			Chain:   ChainName,
+			Network: Network,
+			Address: tx.FromAddress.String(),
+		}
+		accountInfo, err := bws.accountClient.AccountRpClient.GetAccount(context.Background(), accountReq)
+		if err != nil {
+			return nil, err
+		}
+		nonce, _ := strconv.Atoi(accountInfo.Sequence)
+		var gasLimit uint64
+		if tx.TokenAddress.String() == "0x00" {
+			gasLimit = EthGasLimit
+		} else {
+			gasLimit = TokenGasLimit
+		}
+		txStructure = TxStructure{
+			ChainId:         request.ChainId,
+			Nonce:           uint64(nonce),
+			GasPrice:        maxFeePerGas,
+			GasTipCap:       maxFeePerGas,
+			GasFeeCap:       maxPriorityFeePerGas,
+			Gas:             gasLimit,
+			ContractAddress: tx.TokenAddress.String(),
+			FromAddress:     tx.FromAddress.String(),
+			ToAddress:       tx.ToAddress.String(),
+			TokenId:         tx.TokenId,
+			Value:           tx.Amount.String(),
+		}
 	} else {
-		gasLimit = TokenGasLimit
-	}
-	txStructure := TxStructure{
-		ChainId:         request.ChainId,
-		Nonce:           uint64(nonce),
-		GasPrice:        maxFeePerGas,
-		GasTipCap:       maxFeePerGas,
-		GasFeeCap:       maxPriorityFeePerGas,
-		Gas:             gasLimit,
-		ContractAddress: tx.TokenAddress.String(),
-		FromAddress:     tx.FromAddress.String(),
-		ToAddress:       tx.ToAddress.String(),
-		TokenId:         tx.TokenId,
-		Value:           tx.Amount.String(),
+		return &dal_wallet_go.SignedWithdrawTransactionResponse{
+			Code:     dal_wallet_go.ReturnCode_ERROR,
+			Msg:      "Un support transaction type",
+			SignedTx: "",
+		}, nil
 	}
 	data, err := json.Marshal(txStructure)
 	if err != nil {
@@ -224,10 +298,19 @@ func (bws *BusinessMiddleWireServices) BuildSignedTransaction(ctx context.Contex
 		log.Error("create un sign transaction fail", "err", err)
 		return nil, err
 	}
-	err = bws.db.Withdraws.UpdateWithdrawTx(request.RequestId, request.TransactionId, returnTx.SignedTx, nil, 1)
-	if err != nil {
-		log.Error("update signed tx to db fail", "err", err)
-		return nil, err
+
+	if request.TxType == "withdraw" {
+		err = bws.db.Withdraws.UpdateWithdrawTx(request.RequestId, request.TransactionId, returnTx.SignedTx, nil, 1) // 1:交易已经签名
+		if err != nil {
+			log.Error("update signed tx to db fail", "err", err)
+			return nil, err
+		}
+	} else {
+		err = bws.db.Internals.UpdateInternalTx(request.RequestId, request.TransactionId, returnTx.SignedTx, nil, 1) // 1:交易已经签名
+		if err != nil {
+			log.Error("update signed tx to db fail", "err", err)
+			return nil, err
+		}
 	}
 	return &dal_wallet_go.SignedWithdrawTransactionResponse{
 		Code:     1,

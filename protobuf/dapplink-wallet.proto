@@ -28,9 +28,7 @@ message Token{
 message BusinessRegisterRequest{
   string  consumer_token = 1;
   string  request_id = 2;
-  string  deposit_notify = 3;
-  string  withdraw_notify =4;
-  string  tx_flow_notify = 5;
+  string  notify_url = 3;
 }
 
 message BusinessRegisterResponse{
@@ -61,6 +59,7 @@ message UnSignWithdrawTransactionRequest {
   string contract_address = 8;
   string token_id = 9;
   string token_meta = 10;
+  string tx_type = 11;
 }
 
 message UnSignWithdrawTransactionResponse {
@@ -77,6 +76,7 @@ message SignedWithdrawTransactionRequest {
   string chain_id =4;
   string transaction_id = 5;
   string signature = 6;
+  string tx_type = 7;
 }
 
 message SignedWithdrawTransactionResponse {

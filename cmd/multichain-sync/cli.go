@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/dapplink-labs/multichain-sync-account/rpcclient"
+
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -19,6 +19,8 @@ import (
 	"github.com/dapplink-labs/multichain-sync-account/config"
 	"github.com/dapplink-labs/multichain-sync-account/database"
 	flags2 "github.com/dapplink-labs/multichain-sync-account/flags"
+	"github.com/dapplink-labs/multichain-sync-account/notifier"
+	"github.com/dapplink-labs/multichain-sync-account/rpcclient"
 	"github.com/dapplink-labs/multichain-sync-account/rpcclient/chain-account/account"
 	"github.com/dapplink-labs/multichain-sync-account/services"
 )
@@ -62,12 +64,6 @@ func runRpc(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Lifecycl
 		log.Error("Connect to da retriever fail", "err", err)
 		return nil, err
 	}
-	//defer func(conn *grpc.ClientConn) {
-	//	err := conn.Close()
-	//	if err != nil {
-	//		return
-	//	}
-	//}(conn)
 	client := account.NewWalletAccountServiceClient(conn)
 	accountClient, err := rpcclient.NewWalletChainAccountClient(context.Background(), client, "Ethereum")
 	if err != nil {
@@ -99,6 +95,21 @@ func runMigrations(ctx *cli.Context) error {
 	return db.ExecuteSQLMigration(cfg.Migrations)
 }
 
+func runNotify(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+	fmt.Println("running notify task...")
+	cfg, err := config.LoadConfig(ctx)
+	if err != nil {
+		log.Error("failed to load config", "err", err)
+		return nil, err
+	}
+	db, err := database.NewDB(ctx.Context, cfg.MasterDB)
+	if err != nil {
+		log.Error("failed to connect to database", "err", err)
+		return nil, err
+	}
+	return notifier.NewNotifier(db, shutdown)
+}
+
 func NewCli(GitCommit string, GitData string) *cli.App {
 	flags := flags2.Flags
 	return &cli.App{
@@ -117,6 +128,12 @@ func NewCli(GitCommit string, GitData string) *cli.App {
 				Flags:       flags,
 				Description: "Run rpc scanner wallet chain node",
 				Action:      cliapp.LifecycleCmd(runMultichainSync),
+			},
+			{
+				Name:        "notify",
+				Flags:       flags,
+				Description: "Run rpc scanner wallet chain node",
+				Action:      cliapp.LifecycleCmd(runNotify),
 			},
 			{
 				Name:        "migrate",

@@ -19,6 +19,7 @@ type WalletChainAccountClient struct {
 }
 
 func NewWalletChainAccountClient(ctx context.Context, rpc account.WalletAccountServiceClient, chainName string) (*WalletChainAccountClient, error) {
+	log.Info("New account chain rpc client", "chainName", chainName)
 	return &WalletChainAccountClient{Ctx: ctx, AccountRpClient: rpc, ChainName: chainName}, nil
 }
 
@@ -38,7 +39,7 @@ func (wac *WalletChainAccountClient) ExportAddressByPubKey(method, publicKey str
 
 func (wac *WalletChainAccountClient) GetBlockHeader(number *big.Int) (*BlockHeader, error) {
 	var height int64
-	if number != nil {
+	if number == nil {
 		height = 0
 	} else {
 		height = number.Int64()
